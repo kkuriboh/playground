@@ -50,18 +50,17 @@ let string_literal =
     double_quote >>. manyCharsTill anyChar double_quote |>> StringLiteral .>> spaces
 
 let boolean_literal =
-    spaces
-        >>. (pstring "true" |>> lazi (BooleanLiteral true)) <|> (pstring "false" |>> lazi (BooleanLiteral false))
-        .>> spaces
+    (pstring "true" |>> lazi (BooleanLiteral true))
+    <|> (pstring "false" |>> lazi (BooleanLiteral false))
+    .>> spaces
 
 let punit = spaces >>. pstring "()" |>>  lazi Unit .>> spaces
 
 let identifier = many1Chars (letter <|> digit)
-let pid = spaces >>. identifier |>> Id .>> spaces
+let pid = identifier |>> Id .>> spaces
 
 let pbinary_operator =
-    spaces
-    >>. choice 
+    choice 
         [ (pchar '=' |>> lazi Eq)
           (pchar '!' |>> lazi Bang)
           (pchar '*' |>> lazi Star)
@@ -70,24 +69,27 @@ let pbinary_operator =
           (pchar '/' |>> lazi Slash) ]
     .>> spaces
 
-let rec pexpr = choice [int_or_float_literal; string_literal; boolean_literal; punit; pid; (* pbinary_expression *) ]
-and pbinary_expression =
-    spaces >>. pexpr .>>. pbinary_operator .>>. pexpr
+let pexpr_ = choice [int_or_float_literal; string_literal; boolean_literal; punit; pid]
+
+let pbinary_expression =
+    pexpr_ .>>. pbinary_operator .>>. pexpr_
     |>> (fun ((a, b), c) -> BinaryExpression (a, c, b))
     .>> spaces
 
-// let pexpr = pexpr_ <|> pbinary_expression
+let pexpr = attempt pbinary_expression <|> pexpr_
 
 let plet =
-    pstring "let" >>. spaces1 >>. identifier .>> spaces1 .>>. many identifier .>> spaces .>> pchar '=' .>> spaces .>>. pexpr .>> spaces .>> pchar ';' .>> spaces
+    pstring "let" >>. spaces1 >>. identifier .>> spaces1 .>>. many identifier .>> spaces .>> pchar '=' .>> spaces .>>. pexpr .>> pchar ';' .>> spaces
         |>> (fun ((a, b), c) -> Let(a, b, c))
 
 let pstmt = choice [plet]
 
+exception ParseException of string
+
 let parse i =
     match run pstmt i with
     | Success(res, _, _) -> res
-    | Failure(err, _, _) -> failwith err
+    | Failure(err, _, _) -> raise (ParseException err)
 
 // let id x = x;
 let let_func = Let ("id", ["x"], Id "x")
@@ -107,5 +109,5 @@ assert (parse "let id x = x;" = let_func)
 assert (parse "let zero = 0;" = let_literal)
 assert (parse "let x = 2 * 2;" = let_bin)
 
-(* printfn "%A" (parse "let x = \"abc\";") *)
+printfn "%A" (parse "let x = \"abc\";")
 printfn "%A" (parse "let x = 2 * 2;")
