@@ -1,0 +1,4 @@
+let x = 2;
+let double z = z * 2;
+
+double x // 4
